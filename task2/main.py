@@ -1,7 +1,9 @@
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
-import requests
+import re
+from datetime import datetime
+import sqlite3
 
 load_dotenv()
 
@@ -9,16 +11,33 @@ CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
 
 client = Anthropic(api_key=CLAUDE_API_KEY)
 MODEL_NAME = "claude-3-opus-20240229"
+db_path = os.path.join(".", "blogs.db")
 
 # user_message = input("Ask me anything: ")
 
 tools = [
         {
             "name": "save_blog",
-            "description": "The content of the blog article to be saved to database.",
+            "description": """The content of the blog article to be saved to database. 
+            If more information is required from the user, enclose required information in <expecting_input> tags and comma-separate them
+            Eg - <expecting_input>author,title</expecting_input>. Do NOT infer any values.""",
             "input_schema": {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "body": {
+                        "type": "string",
+                        "description": "Body of the blog enclosed in <article></article> tags. Do not include the tags in the body." 
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the article." 
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "Name of the author of the article." 
+                    },
+                },
+                "required": ["author", "title", "body"]
             }
         },
         {
@@ -45,47 +64,50 @@ You may generate blogs by responding to users' requests normally.
 To save, retrieve, update, and delete, you have access to the following tools - ['save_blog', 'retrieve_blog', 'delete_existing_blog']. 
 The user may ask to generate a new blog article given some information, or the user may ask to retrieve an existing article. 
 Until the user has EXPLICITLY asked to save, update, discard or delete the article, respond to the user's request normally.
+Do NOT infer any values.
 When generating a blog article, Enclose the article as such:
 <article>
     $article
 </article>
 """
 
-# def generate_or_modify_blog():
-#     user_message = input("Further instructions: ")
-
-#     return user_message
-
-# def get_location():
-#     """Takes the name of a city as input from user and then gets the lat and long of the city, then uses these to get the weater forecast from the public open-meteo API."""
-
-#     city = input("Your current location (city): ")
-
-#     url = "https://nominatim.openstreetmap.org/search"
-#     params = {'q': city, 'format': 'json', 'limit': 1}
-#     response = requests.get(url, params=params).json()
+def save_blog(tool_input):
+    if not tool_input["author"]:
+        return "Error: Author not provided"
+    if not tool_input["title"]:
+        return "Error: Title not provided"
+    if not tool_input["body"]:
+        return "Error: Article body not provided"
     
-#     if response:
-#         lat = response[0]["lat"]
-#         lon = response[0]["lon"]
-#         return {"lattitude": lat, "longitude": lon}
-#     else:
-#         raise ValueError("Could not find lat and long coordinates for given place.")
+    author = tool_input["author"]
+    title = tool_input["title"]
+    body = tool_input["body"]
+    time_now = datetime.today().strftime('%Y-%m-%d %H:%M')
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
-# response = client.messages.create(
-#     model=MODEL_NAME,
-#     max_tokens=1024,
-#     tools=tools,
-#     messages=[{
-#         "role": "user",
-#         "content": user_message
-#     }],
-#     system=system_message
-# )
-# print(response)
+        cursor.execute("""
+            INSERT INTO articles (title, author, body, date_published)
+            VALUES (?, ?, ?, ?)
+        """, (title, author, body, time_now))
 
-def conversate(system_message):
-    user_message = input("Ask me anything: ")
+        conn.commit()
+        print("Data inserted successfully")
+        return "Data inserted successfully"
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred: {e}"
+    finally:
+        if conn:
+            conn.close()
+
+def conversate(system_message, input_query = "Ask me anything: "):
+    # print("****SYSTEM MESSAGE*****")
+    # print(system_message)
+    # print("*********")
+    
+    user_message = input(input_query)
 
     response = client.messages.create(
         model=MODEL_NAME,
@@ -103,45 +125,51 @@ def conversate(system_message):
         tool_use = next(block for block in response.content if block.type == "tool_use")
         tool_name = tool_use.name
         tool_input = tool_use.input
-
+        
+        result = ""
         if tool_name == "save_blog":
-            print("Save the blog.")
+            print("Saving the blog.")
             print(next(block.text for block in response.content if block.type == "text"))
+            result = save_blog(tool_input)
 
         print(f"\nTool Used: {tool_name}")
         print(f"Tool Input: {tool_input}")
 
-        # further_instructions = generate_or_modify_blog()
-
-        # response = client.messages.create(
-        #     model=MODEL_NAME,
-        #     max_tokens=4096,
-        #     messages=[
-        #         {"role": "user", "content": user_message},
-        #         {"role": "assistant", "content": response.content},
-        #         {
-        #             "role": "user",
-        #             "content": [
-        #                 {
-        #                     "type": "tool_result",
-        #                     "tool_use_id": tool_use.id,
-        #                     "content": further_instructions,
-        #                 }
-        #             ],
-        #         },
-        #     ],
-        #     tools=tools,
-        # )
+        response = client.messages.create(
+            model=MODEL_NAME,
+            max_tokens=4096,
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": response.content},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_use.id,
+                            "content": result,
+                        }
+                    ],
+                },
+            ],
+            tools=tools,
+        )
+        return response
     else:
         modified_system_message = system_message + response.content[0].text
-        conversate(modified_system_message)
+        
+        if "</expecting_input>" in response.content[0].text:
+            required_info = re.search(r'<expecting_input>(.*?)</expecting_input>', response.content[0].text, re.DOTALL).group(1)
+            input_query = f"Please provide the following information required to save your blog - {required_info}: "
+            return conversate(modified_system_message, input_query)
+        else:
+            return conversate(modified_system_message)
 
 
-conversate(system_message)
-
-# final_response = next(
-#     (block.text for block in response.content if hasattr(block, "text")),
-#     None,
-# )
-# print(response.content)
-# print(f"\nFinal Response: {final_response}")
+response = conversate(system_message) # Initiate conversation
+print(response)
+final_response = next(
+    (block.text for block in response.content if hasattr(block, "text")),
+    None,
+)
+print(f"\nFinal Response: {final_response}")
