@@ -1,5 +1,5 @@
 ### Iteration 1 - pilot
-Same thing as task 1, although I am now using the `tools` top level parameter to define all my tools. This is better for specifying multiple tools as it will be easier to specify if I want to specify the `tool-choice` parameter later. It is also more readable as my sytem prompt won't get cluttered.
+Same thing as task 1, although I am now using the `tools` top level parameter to define all my tools. This is better when defining multiple tools as Claude will be able to choose between tools better when I specify the `tool-choice` to `auto`/`any` parameter later. It is also more readable as my sytem prompt won't get cluttered.
 
 ### Iteration 2 - trying to make it work like a chatbot (back and forth convos)
 Getting Claude to generate blogs for me and calling the save_to_db function worked on the first try, but it only sustains for one back and forth dialogue between the user and Claude. I am having trouble in keeping the conversation going until the user explicitly asks Claude to save it.
