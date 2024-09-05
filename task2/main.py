@@ -4,6 +4,7 @@ import os
 import re
 from datetime import datetime
 import sqlite3
+import json
 
 load_dotenv()
 
@@ -36,6 +37,10 @@ tools = [
                         "type": "string",
                         "description": "Name of the author of the article." 
                     },
+                    "id": {
+                        "type": "string",
+                        "description": "Unique id of the article in the database. Only needed when updating an existing article." 
+                    }
                 },
                 "required": ["author", "title", "body"]
             }
@@ -96,14 +101,22 @@ def save_blog(tool_input):
     title = tool_input["title"]
     body = tool_input["body"]
     time_now = datetime.today().strftime('%Y-%m-%d %H:%M')
+    id = tool_input.get("id", None)
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
-            INSERT INTO articles (title, author, body, date_published)
-            VALUES (?, ?, ?, ?)
-        """, (title, author, body, time_now))
+        if id is not None:
+            cursor.execute("""
+                UPDATE articles
+                SET title = ?, author = ?, body = ?, date_published = ?
+                WHERE id = ?
+            """, (title, author, body, time_now, id))
+        else:
+            cursor.execute("""
+                INSERT INTO articles (title, author, body, date_published)
+                VALUES (?, ?, ?, ?)
+            """, (title, author, body, time_now))
 
         conn.commit()
         print("Data inserted successfully")
