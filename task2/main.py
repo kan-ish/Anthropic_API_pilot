@@ -14,8 +14,6 @@ client = Anthropic(api_key=CLAUDE_API_KEY)
 MODEL_NAME = "claude-3-5-sonnet-20240620"
 db_path = os.path.join(".", "blogs.db")
 
-# user_message = input("Ask me anything: ")
-
 tools = [
         {
             "name": "save_blog",
@@ -68,7 +66,13 @@ tools = [
             "description": "A blog article to be deleted from database.",
             "input_schema": {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Unique id of the article in the database." 
+                    },
+                },
+                "required": ["id"]
             }
         }
     ]
@@ -170,6 +174,32 @@ def retrieve_blog(tool_input):
         if conn:
             conn.close()
 
+def delete_existing_blog(tool_input):
+    if not tool_input["id"]:
+        return "Error: Please provide the unique id of the article. You can ask Claude to retrieve the id of the article you want to delete."
+    
+    id = tool_input["id"]
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            DELETE FROM articles
+            WHERE id = ?
+        """, (id,))
+
+        rows_affected = cursor.rowcount
+        print(f"Deleted {rows_affected} records from db.")
+        return f"Deleted {rows_affected} records from db."
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred: {e}"
+    finally:
+        if conn:
+            conn.close()
+
+
 def conversate(system_message, input_query = "Ask me anything: ", response = None):
     if response:
         assistan_response = next(
@@ -209,6 +239,10 @@ def conversate(system_message, input_query = "Ask me anything: ", response = Non
             print("Retrieving the blog.")
             print(next(block.text for block in response.content if block.type == "text"))
             result = retrieve_blog(tool_input)
+        elif tool_name == "delete_existing_blog":
+            print("Deleting the blog.")
+            print(next(block.text for block in response.content if block.type == "text"))
+            result = delete_existing_blog(tool_input)
 
         print(f"\nTool Used: {tool_name}")
         print(f"Tool Input: {tool_input}")
