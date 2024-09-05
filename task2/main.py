@@ -232,16 +232,24 @@ def conversate(system_message, input_query = "Ask me anything: ", response = Non
             ],
             tools=tools,
         )
-        return response
+        modified_system_message = system_message + response.content[0].text
+        
+        if "</expecting_input>" in response.content[0].text:
+            required_info = re.search(r'<expecting_input>(.*?)</expecting_input>', response.content[0].text, re.DOTALL).group(1)
+            input_query = f"Please provide the following information required to save your blog - {required_info}: "
+            return conversate(modified_system_message, input_query, response)
+        else:
+            return conversate(modified_system_message, response=response)
+        # return response
     else:
         modified_system_message = system_message + response.content[0].text
         
         if "</expecting_input>" in response.content[0].text:
             required_info = re.search(r'<expecting_input>(.*?)</expecting_input>', response.content[0].text, re.DOTALL).group(1)
             input_query = f"Please provide the following information required to save your blog - {required_info}: "
-            return conversate(modified_system_message, input_query)
+            return conversate(modified_system_message, input_query, response)
         else:
-            return conversate(modified_system_message)
+            return conversate(modified_system_message, response=response)
 
 
 response = conversate(system_message) # Initiate conversation
