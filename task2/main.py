@@ -10,7 +10,7 @@ load_dotenv()
 CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
 
 client = Anthropic(api_key=CLAUDE_API_KEY)
-MODEL_NAME = "claude-3-opus-20240229"
+MODEL_NAME = "claude-3-5-sonnet-20240620"
 db_path = os.path.join(".", "blogs.db")
 
 # user_message = input("Ask me anything: ")
@@ -60,11 +60,14 @@ tools = [
 
 system_message = """
 Your only job is to generate, save, retrieve, update, and delete blog articles. 
-You may generate blogs by responding to users' requests normally.
+You may generate blogs by responding to users' requests without using any tools.
 To save, retrieve, update, and delete, you have access to the following tools - ['save_blog', 'retrieve_blog', 'delete_existing_blog']. 
-The user may ask to generate a new blog article given some information, or the user may ask to retrieve an existing article. 
-Until the user has EXPLICITLY asked to save, update, discard or delete the article, respond to the user's request normally.
-Do NOT infer any values.
+The user may ask to generate a new blog article given some information, modify the blog in the conversation, or the user may ask to retrieve an existing article from the db. 
+If the user has NOT EXPLICITLY asked to save, update, discard or delete the article, do NOT use those tools.
+Do NOT infer any values. If you require any clarification, ask the user. Eg - 
+<expecting_input>
+    author,title
+</expecting_input>.
 When generating a blog article, Enclose the article as such:
 <article>
     $article
