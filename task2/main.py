@@ -1,10 +1,8 @@
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
-import re
-from datetime import datetime
-import sqlite3
-import json
+from tools_config import tools
+from custom_functions import save_blog, retrieve_blog, delete_existing_blog, continue_conversation
 
 load_dotenv()
 
@@ -13,69 +11,6 @@ CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
 client = Anthropic(api_key=CLAUDE_API_KEY)
 MODEL_NAME = "claude-3-5-sonnet-20240620"
 db_path = os.path.join(".", "blogs.db")
-
-tools = [
-        {
-            "name": "save_blog",
-            "description": """The content of the blog article to be saved to database. 
-            If more information is required from the user, enclose required information in <expecting_input> tags and comma-separate them
-            Eg - <expecting_input>author,title</expecting_input>. Do NOT infer any values.""",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "body": {
-                        "type": "string",
-                        "description": "Body of the blog enclosed in <article></article> tags. Do not include the tags in the body." 
-                    },
-                    "title": {
-                        "type": "string",
-                        "description": "Title of the article." 
-                    },
-                    "author": {
-                        "type": "string",
-                        "description": "Name of the author of the article." 
-                    },
-                    "id": {
-                        "type": "string",
-                        "description": "Unique id of the article in the database. Only needed when updating an existing article." 
-                    }
-                },
-                "required": ["author", "title", "body"]
-            }
-        },
-        {
-            "name": "retrieve_blog",
-            "description": "The content of a blog article to be retrieved from database.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "Title of the article." 
-                    },
-                    "author": {
-                        "type": "string",
-                        "description": "Name of the author of the article." 
-                    },
-                },
-                "required": ["author", "title"]
-            }
-        },
-        {
-            "name": "delete_existing_blog",
-            "description": "A blog article to be deleted from database.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string",
-                        "description": "Unique id of the article in the database." 
-                    },
-                },
-                "required": ["id"]
-            }
-        }
-    ]
 
 system_message = """
 Your only job is to generate, save, retrieve, update, and delete blog articles. 
@@ -92,112 +27,6 @@ When generating a blog article, Enclose the article as such:
     $article
 </article>
 """
-
-def save_blog(tool_input):
-    if not tool_input["author"]:
-        return "Error: Author not provided"
-    if not tool_input["title"]:
-        return "Error: Title not provided"
-    if not tool_input["body"]:
-        return "Error: Article body not provided"
-    
-    author = tool_input["author"]
-    title = tool_input["title"]
-    body = tool_input["body"]
-    time_now = datetime.today().strftime('%Y-%m-%d %H:%M')
-    id = tool_input.get("id", None)
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        if id is not None:
-            cursor.execute("""
-                UPDATE articles
-                SET title = ?, author = ?, body = ?, date_published = ?
-                WHERE id = ?
-            """, (title, author, body, time_now, id))
-        else:
-            cursor.execute("""
-                INSERT INTO articles (title, author, body, date_published)
-                VALUES (?, ?, ?, ?)
-            """, (title, author, body, time_now))
-
-        conn.commit()
-        print("Data inserted successfully")
-        return "Data inserted successfully"
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {e}"
-    finally:
-        if conn:
-            conn.close()
-
-
-def retrieve_blog(tool_input):
-    if not tool_input["author"]:
-        return "Error: Author not provided"
-    if not tool_input["title"]:
-        return "Error: Title not provided"
-
-    author = tool_input["author"]
-    title = tool_input["title"]
-
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT * FROM articles WHERE title = ?
-            AND author = ?
-        """, (title, author))
-
-        rows = cursor.fetchall()
-        if not rows:
-            return "Error: No article found"
-        
-        print(f"Data from db: {rows}")
-        result = {
-            "id": rows[0][0],
-            "title": rows[0][1],
-            "author": rows[0][2],
-            "body": rows[0][3],
-            "date_published": rows[0][4],
-        }
-        print(f"\nformatted result: {result}")
-        print(json.dumps(result))
-
-        return json.dumps(result)
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {e}"
-    finally:
-        if conn:
-            conn.close()
-
-def delete_existing_blog(tool_input):
-    if not tool_input["id"]:
-        return "Error: Please provide the unique id of the article. You can ask Claude to retrieve the id of the article you want to delete."
-    
-    id = tool_input["id"]
-
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            DELETE FROM articles
-            WHERE id = ?
-        """, (id,))
-
-        rows_affected = cursor.rowcount
-        print(f"Deleted {rows_affected} records from db.")
-        return f"Deleted {rows_affected} records from db."
-    except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-        return f"An error occurred: {e}"
-    finally:
-        if conn:
-            conn.close()
 
 
 def conversate(system_message, input_query = "Ask me anything: ", response = None):
@@ -223,7 +52,7 @@ def conversate(system_message, input_query = "Ask me anything: ", response = Non
         }],
         system=system_message
     )
-    print(response)
+    # print(response)
 
     if response.stop_reason == "tool_use":
         tool_use = next(block for block in response.content if block.type == "tool_use")
@@ -266,30 +95,8 @@ def conversate(system_message, input_query = "Ask me anything: ", response = Non
             ],
             tools=tools,
         )
-        modified_system_message = system_message + response.content[0].text
-        
-        if "</expecting_input>" in response.content[0].text:
-            required_info = re.search(r'<expecting_input>(.*?)</expecting_input>', response.content[0].text, re.DOTALL).group(1)
-            input_query = f"Please provide the following information required to save your blog - {required_info}: "
-            return conversate(modified_system_message, input_query, response)
-        else:
-            return conversate(modified_system_message, response=response)
-        # return response
-    else:
-        modified_system_message = system_message + response.content[0].text
-        
-        if "</expecting_input>" in response.content[0].text:
-            required_info = re.search(r'<expecting_input>(.*?)</expecting_input>', response.content[0].text, re.DOTALL).group(1)
-            input_query = f"Please provide the following information required to save your blog - {required_info}: "
-            return conversate(modified_system_message, input_query, response)
-        else:
-            return conversate(modified_system_message, response=response)
+
+    continue_conversation(system_message, response, conversate)
 
 
 response = conversate(system_message) # Initiate conversation
-print(response)
-final_response = next(
-    (block.text for block in response.content if hasattr(block, "text")),
-    None,
-)
-print(f"\nFinal Response: {final_response}")
