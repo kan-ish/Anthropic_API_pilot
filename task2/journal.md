@@ -1,3 +1,6 @@
+* Here is the documentation of my progress as I developed this project from scratch.
+* The term Iteration is loosely defined here. These are points in the duration of development of this project that I felt enough progress had been made that warrants some documentation.
+
 ### Iteration 1 - pilot
 Same thing as task 1, although I am now using the `tools` top level parameter to define all my tools. This is better when defining multiple tools as Claude will be able to choose between tools better when I specify the `tool-choice` to `auto`/`any` parameter later. It is also more readable as my sytem prompt won't get cluttered.
 
@@ -258,9 +261,12 @@ Problems I am facing now -
 * Claude can't remember the context of the previous message(s).
 * Claude omitting required fields in `tool_input` parameter in response.
 * Claude's behaviour not consistent. It will think it will ask the user for input but then doesn't and infers the values instead.
-* Claude thinking user has given an instruction when the user hasn't (attempting to save when the user just asked it to generate).
+* Claude minsunderstanding a user instruction (attempting to save when the user just asked it to generate).
 
 I have now tweeked the system prompt and the tool descriptions and also switched to 3.5 Sonnet. The behaviour now seems to have improved.
+For the problem of Claude minsunderstanding user instructions, I dealt with it not only by making adjustments in the tool description and system prompt, but also by providing information to the user if Claude is intending to call a function.
+For example, when Claude asks the user for information on author name and title, I let the user know that Claide is asking these info because it intends to call the save function after this.
+
 
 ### sucessfully retrieve and save the article
 This method generates a lot of tokens, but gets the job done. Will consider optimizing it once the core features are complete.
