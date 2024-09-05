@@ -45,7 +45,17 @@ tools = [
             "description": "The content of a blog article to be retrieved from database.",
             "input_schema": {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Title of the article." 
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "Name of the author of the article." 
+                    },
+                },
+                "required": ["author", "title"]
             }
         },
         {
@@ -105,7 +115,55 @@ def save_blog(tool_input):
         if conn:
             conn.close()
 
-def conversate(system_message, input_query = "Ask me anything: "):
+
+def retrieve_blog(tool_input):
+    if not tool_input["author"]:
+        return "Error: Author not provided"
+    if not tool_input["title"]:
+        return "Error: Title not provided"
+
+    author = tool_input["author"]
+    title = tool_input["title"]
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT * FROM articles WHERE title = ?
+            AND author = ?
+        """, (title, author))
+
+        rows = cursor.fetchall()
+        if not rows:
+            return "Error: No article found"
+        
+        print(f"Data from db: {rows}")
+        result = {
+            "id": rows[0][0],
+            "title": rows[0][1],
+            "author": rows[0][2],
+            "body": rows[0][3],
+            "date_published": rows[0][4],
+        }
+        print(f"\nformatted result: {result}")
+        print(json.dumps(result))
+
+        return json.dumps(result)
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return f"An error occurred: {e}"
+    finally:
+        if conn:
+            conn.close()
+
+def conversate(system_message, input_query = "Ask me anything: ", response = None):
+    if response:
+        assistan_response = next(
+            (block.text for block in response.content if hasattr(block, "text")),
+            None,
+        )
+        print(f"\nAssistent response: {assistan_response}")
     # print("****SYSTEM MESSAGE*****")
     # print(system_message)
     # print("*********")
@@ -134,6 +192,10 @@ def conversate(system_message, input_query = "Ask me anything: "):
             print("Saving the blog.")
             print(next(block.text for block in response.content if block.type == "text"))
             result = save_blog(tool_input)
+        elif tool_name == "retrieve_blog":
+            print("Retrieving the blog.")
+            print(next(block.text for block in response.content if block.type == "text"))
+            result = retrieve_blog(tool_input)
 
         print(f"\nTool Used: {tool_name}")
         print(f"Tool Input: {tool_input}")
