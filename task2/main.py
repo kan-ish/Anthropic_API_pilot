@@ -7,7 +7,6 @@ from custom_functions import save_blog, retrieve_blog, delete_existing_blog, con
 load_dotenv()
 
 CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
-
 client = Anthropic(api_key=CLAUDE_API_KEY)
 MODEL_NAME = "claude-3-5-sonnet-20240620"
 db_path = os.path.join(".", "blogs.db")
@@ -35,10 +34,7 @@ def conversate(system_message, input_query = "Ask me anything: ", response = Non
             (block.text for block in response.content if hasattr(block, "text")),
             None,
         )
-        print(f"\nAssistent response: {assistan_response}")
-    # print("****SYSTEM MESSAGE*****")
-    # print(system_message)
-    # print("*********")
+        print(f"\nAssistant response: {assistan_response}")
     
     user_message = input(input_query)
 
