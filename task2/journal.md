@@ -253,8 +253,14 @@ Final Response: Great news! The blog article about bees has been successfully sa
 The system confirmed that the data was inserted successfully. Is there anything else you'd like to do with the blog, such as retrieving it to verify the content, or perhaps create another article?
 ```
 
-Other times, it will forget what article the user is talking about just in the next message.
-There have also been instances where Claude didn't follow the instructions given in the system prompt. For example, it will sometimes infer the value of the title of the blog, or make up a random name for the author. Sometimes it will say in the `<thinking>` tag that the user has not provided these details, so it will ask the user, and in the same response it will infer those same values it was going to ask the user. It will also sometimes think that the user wants to save the article when the user has only asked to "write" the article. All these clauses have been explicitly mentioned in the system prompt, but I am trying to tweek it to make Claude's behaviour more consistent. I finally switched to 3.5 Sonnet after multiple instances of context retention problems.
+Problems I am facing now - 
+* Claude inferring values instead of asking the user, despite mentioning explicitly in the system prompt not to do so. I suspect this can be fixed by using a different model. But what is confusing me is that this just started suddenly, without any changes to the system prompt.
+* Claude can't remember the context of the previous message(s).
+* Claude omitting required fields in `tool_input` parameter in response.
+* Claude's behaviour not consistent. It will think it will ask the user for input but then doesn't and infers the values instead.
+* Claude thinking user has given an instruction when the user hasn't (attempting to save when the user just asked it to generate).
+
+I have now tweeked the system prompt and the tool descriptions and also switched to 3.5 Sonnet. The behaviour now seems to have improved.
 
 ### sucessfully retrieve and save the article
 This method generates a lot of tokens, but gets the job done. Will consider optimizing it once the core features are complete.
